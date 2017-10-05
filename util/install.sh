@@ -218,6 +218,8 @@ function of13 {
     fi
 
     # Install netbee
+    # Normally this should not work because the netbee should come from:
+    # git clone https://github.com/netgroup-polito/netbee.git
     if [ "$DIST" = "Ubuntu" ] && version_ge $RELEASE 14.04; then
         NBEESRC="nbeesrc-feb-24-2015"
         NBEEDIR="netbee"
