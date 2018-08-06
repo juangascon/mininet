@@ -102,6 +102,14 @@ function version_ge {
     [ "$1" == "$latest" ]
 }
 
+# Attempt to identify Python version
+PYTHON=${PYTHON:-python}
+if $PYTHON --version |& grep 'Python 2' > /dev/null; then
+    PYTHON_VERSION=2; PYPKG=python
+else
+    PYTHON_VERSION=3; PYPKG=python3
+fi
+echo "${PYTHON} is version ${PYTHON_VERSION}"
 
 # Kernel Deb pkg to be removed:
 KERNEL_IMAGE_OLD=linux-image-2.6.26-33-generic
@@ -145,19 +153,20 @@ function mn_deps {
         $install gcc make socat psmisc xterm openssh-clients iperf \
             iproute telnet python-setuptools libcgroup-tools \
             ethtool help2man pyflakes pylint python-pep8 python-pexpect
-	elif [ "$DIST" = "SUSE LINUX"  ]; then
+    elif [ "$DIST" = "SUSE LINUX"  ]; then
 		$install gcc make socat psmisc xterm openssh iperf \
-			iproute telnet python-setuptools libcgroup-tools \
-			ethtool help2man python-pyflakes python3-pylint python-pep8 python-pexpect
-    else
-        $install gcc make socat psmisc xterm ssh iperf iproute telnet \
-            python-setuptools cgroup-bin ethtool help2man \
-            pyflakes pylint pep8 python-pexpect
+			iproute telnet ${PYPKG}-setuptools libcgroup-tools \
+			ethtool help2man python-pyflakes python3-pylint \
+                        python-pep8 ${PYPKG}-pexpect ${PYPKG}-tk
+    else  # Debian/Ubuntu
+        $install gcc make socat psmisc xterm ssh iperf iproute2 telnet \
+                 cgroup-bin ethtool help2man pyflakes pylint pep8 \
+                 ${PYPKG}-setuptools ${PYPKG}-pexpect ${PYPKG}-tk
     fi
 
     echo "Installing Mininet core"
     pushd $MININET_DIR/mininet
-    sudo make install
+    sudo PYTHON=${PYTHON} make install
     popd
 }
 
@@ -204,11 +213,14 @@ function of {
 function of13 {
     echo "Installing OpenFlow 1.3 soft switch implementation..."
     cd $BUILD_DIR/
-    # Modify libxerces-c2-dev to libxerces-c3-dev since it is obsolete
-    $install  git-core autoconf automake autotools-dev pkg-config \
-        make gcc g++ libtool libc6-dev cmake libpcap-dev libxerces-c3-dev  \
+    $install git-core autoconf automake autotools-dev pkg-config \
+        make gcc g++ libtool libc6-dev cmake libpcap-dev  \
         unzip libpcre3-dev flex bison libboost-dev
-
+    if [ "$DIST" = "Ubuntu" ] && version_le $RELEASE 16.04; then
+        $install libxerces-c2-dev
+    else
+        $install libxerces-c-dev
+    fi
     if [ ! -d "ofsoftswitch13" ]; then
         git clone https://github.com/CPqD/ofsoftswitch13.git
         if [[ -n "$OF13_SWITCH_REV" ]]; then
@@ -219,17 +231,17 @@ function of13 {
     fi
 
     # Install netbee
-    # It must come from "git clone https://github.com/netgroup-polito/netbee.git" 
-    NBEEDIR="netbee"
-    cd $BUILD_DIR/
-    git clone https://github.com/netgroup-polito/netbee.git
-    cd ${NBEEDIR}/src
+    if [ ! -d "netbee" ]; then
+        git clone https://github.com/netgroup-polito/netbee.git
+    fi
+    cd netbee/src
     cmake .
     make
-    cd $BUILD_DIR/
-    sudo cp ${NBEEDIR}/bin/libn*.so /usr/local/lib
+
+    cd $BUILD_DIR
+    sudo cp netbee/bin/libn*.so /usr/local/lib
     sudo ldconfig
-    sudo cp -R ${NBEEDIR}/include/ /usr/
+    sudo cp -R netbee/include/ /usr/
 
     # Resume the install:
     cd $BUILD_DIR/ofsoftswitch13
